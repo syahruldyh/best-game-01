@@ -4,7 +4,7 @@
 ![Rank](https://make.fun/badge/best-game-01/syahruldyh/best-game-01/rank.svg)
 ![Reward](https://make.fun/badge/best-game-01/syahruldyh/best-game-01/reward.svg)
 
-**Six storms are coming. One canal. Three districts. You hold the gates.**
+**Six storms. Three districts. Six gates, two reservoirs, an emergency pump, three upgrades, one combo. You hold the gates.**
 
 ## What it is
 
