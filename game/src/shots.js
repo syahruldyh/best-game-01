@@ -38,22 +38,32 @@ export function stageShot(name, sim) {
     // Storm 6/6 — THE DELUGE as the boss moment. Numbers are a real frame
     // from a winning run (S trace, skilled pump timing): 28s into the
     // Deluge, 2s left on the clock, LOWFIELD at 82% with the alarm up
-    // (it fires at 75%), both reservoirs pinned FULL at 125/125, all six
-    // gates open, score 92,108 on the way to a real 93,714 win. The
-    // Deluge boss bar (63u surge left of 1,070) and the storm-dark map
-    // come from render.js. The pump is honestly on cooldown (11.9s — it
-    // fired at 19.9s, just before the Final Torrent), so the button reads
+    // (it fires at 75%), the basin pinned FULL at 125/125, all six
+    // gates open. The Final Torrent is live in phase 3/3 BREAK with
+    // 36u of its 80u pressure still standing — the player has routed
+    // 44u of torrent water, so the boss bar is half drained. Combo is
+    // genuinely x5: the player shut G3 while the torrent opened to let
+    // LOWFIELD take the first hit, pumped the tank down, then opened G3
+    // at 24s and routed every unit of the last four seconds clean — the
+    // flood on LOWFIELD built up in those first three seconds and
+    // barely recedes at 0.4%/s while the player routes everything. The
+    // tank sits at 86/125 because it is still absorbing the torrent;
+    // that room is why the routing works. Score 92,108 equals BEST
+    // 92,108 — this run has just set a new best, on its way to a real
+    // 93,714 win. The pump is honestly on cooldown (11.9s — it fired
+    // at 19.9s, just before the Final Torrent), so the button reads
     // "ready in 12s". Floaters use only texts the game itself emits:
-    // the surge banner and the pump receipt (50u now drains 50).
+    // the surge banner, the combo callout and the pump receipt.
     startStorm(sim);
     sim.stormIndex = 5;
     sim.stormElapsed = 28;
     sim.stormTime = 2;
     sim.score = 92108;
-    sim.best = 93714;
+    sim.best = 92108;
     sim.funds = 2036;
-    sim.combo = 1;
+    sim.combo = 5;
     sim.comboTimer = 0;
+    sim.torrentRouted = 44;
     sim.pumpCooldown = 11.9;
     openGate(sim, 1);
     openGate(sim, 2);
@@ -62,7 +72,7 @@ export function stageShot(name, sim) {
     openGate(sim, 5);
     openGate(sim, 6);
     sim.reservoirs[0].level = 125;
-    sim.reservoirs[1].level = 125;
+    sim.reservoirs[1].level = 86;
     sim.districts[0].flood = 25; // OLD MILL holding
     sim.districts[1].flood = 41;
     sim.districts[2].flood = 82; // LOWFIELD near overflow
@@ -73,9 +83,10 @@ export function stageShot(name, sim) {
     sim.stats.spent = 1530;
     sim.upgrades = { levee: 3, dredge: 3, pump: 3 };
     addFloater(sim, 640, 200, '⚠ FINAL TORRENT!', '#e86a1c', 20);
+    addFloater(sim, 640, 260, 'COMBO x5!', '#7cf2a8', 22);
     addFloater(sim, 795, 320, 'PUMPED 50u  +100', '#7cc4f2');
     seedDroplets(sim, 48);
-    return { screen: SCREEN_PLAY, best: 93714 };
+    return { screen: SCREEN_PLAY, best: 92108 };
   }
 
   if (name === 'rescue') {

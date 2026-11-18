@@ -14,25 +14,28 @@ export const MAP = { x: LEFT_W, y: TOP_H, w: W - LEFT_W - RIGHT_W, h: H - TOP_H 
 export const PANEL_L = { x: 0, y: TOP_H, w: LEFT_W, h: H - TOP_H - BOT_H };
 export const PANEL_R = { x: W - RIGHT_W, y: TOP_H, w: RIGHT_W, h: H - TOP_H - BOT_H };
 
-// Palette: daylight water + cream infrastructure + orange danger.
+// Palette: night storm. Dark navy ground and panels, luminous cyan water,
+// orange danger. The key names are historic: cream is the side-panel
+// fill, cream2 the map ground, paper the modal fill, ink the light text.
 export const C = {
-  navy: '#14324a',
-  navy2: '#0e2438',
-  cream: '#f2e8d5',
-  cream2: '#e6d9bd',
-  paper: '#faf3e3',
-  water: '#1f7fd0',
-  waterDeep: '#1460a8',
-  waterLight: '#7cc4f2',
-  channel: '#bcd9ee',
-  channelBed: '#8fb8d8',
-  orange: '#e86a1c',
+  navy: '#0e2438',
+  navy2: '#081826',
+  cream: '#10263c',
+  cream2: '#0a1a2c',
+  paper: '#122c44',
+  water: '#35c8ff',
+  waterDeep: '#7cc4f2',
+  waterLight: '#a8e0ff',
+  channel: '#35c8ff',
+  channelBed: '#0d2b45',
+  orange: '#ff7a2e',
   orangeSoft: '#f5a623',
-  green: '#2e9e5b',
-  red: '#d93a2b',
+  green: '#35d07f',
+  red: '#ff4a3d',
   gold: '#f2b705',
-  ink: '#1c2b39',
-  grey: '#6b7a88',
+  ink: '#dcebf7',
+  grey: '#8fa8bc',
+  steel: '#3a6a94',
 };
 
 export const STEP = 1 / 60;

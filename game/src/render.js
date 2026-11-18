@@ -10,7 +10,8 @@ import {
 import {
   PHASE_TITLE, PHASE_PLAY, PHASE_INTERMISSION, PHASE_WIN, PHASE_LOSS,
   reservoirCapacity, pumpRate, channelInflow, upcomingSurges, stormDef,
-  stormWaterTotal, stormWaterRemaining,
+  stormWaterTotal, stormWaterRemaining, torrentLive, torrentPhase,
+  torrentPressure, torrentTotal, TORRENT_PHASES,
 } from './sim.js';
 
 export const SCREEN_TITLE = PHASE_TITLE;
@@ -88,7 +89,8 @@ export function createRenderer(canvas) {
     text(`SCORE ${Math.floor(sim.score)}`, 640, 22, 18, '#ffffff', 'left', true);
     text(`BEST ${Math.max(best, Math.floor(sim.score))}`, 640, 46, 13, '#bcd9ee');
     text(`💰 FUNDS $${Math.floor(sim.funds)}`, 800, 22, 18, '#ffd97a', 'left', true);
-    text(`COMBO x${sim.combo}`, 800, 46, 13, sim.combo > 1 ? '#7cf2a8' : '#bcd9ee', 'left', true);
+    const comboHot = sim.combo >= 4;
+    text(`COMBO x${sim.combo}`, 800, 46, comboHot ? 18 : 13, comboHot ? C.gold : sim.combo > 1 ? '#7cf2a8' : '#bcd9ee', 'left', true);
     text('WIN: protect all 3 districts', 960, 18, 12, '#7cf2a8', 'left', true);
     text('LOSE: a district floods', 960, 40, 12, '#ff9a7a', 'left', true);
     // Pause + mute buttons (top-right corner, inside the bar).
@@ -116,7 +118,7 @@ export function createRenderer(canvas) {
     } else {
       if (surges.length === 0) text('No surges left', 12, y, 13, C.grey);
       for (const s of surges.slice(0, 4)) {
-        ctx.fillStyle = s.live ? '#fde8d8' : '#fff8ea';
+        ctx.fillStyle = s.live ? '#4a2a12' : '#1a3a56';
         rr(8, y - 14, PANEL_L.w - 16, 34, 5); ctx.fill();
         text(`${s.live ? '🔴 ' : ''}${s.name}`, 14, y - 3, 13, C.ink, 'left', true);
         text(`${s.units}u · ${s.channel}`, 14, y + 11, 11, C.grey);
@@ -191,7 +193,7 @@ export function createRenderer(canvas) {
     // Ground.
     ctx.fillStyle = C.cream2;
     ctx.fillRect(MAP.x, MAP.y, MAP.w, MAP.h);
-    ctx.fillStyle = '#dccfae';
+    ctx.fillStyle = '#16324a';
     for (let gx = MAP.x + 40; gx < MAP.x + MAP.w; gx += 88) {
       for (let gy = MAP.y + 40; gy < MAP.y + MAP.h; gy += 88) {
         ctx.fillRect(gx, gy, 3, 3);
@@ -212,18 +214,18 @@ export function createRenderer(canvas) {
     ctx.fillStyle = '#ffffff';
     ctx.fillRect(618, 622, 8, 6); ctx.fillRect(632, 622, 8, 6); ctx.fillRect(646, 622, 8, 6);
 
-    // Storm 6 — THE DELUGE: the map darkens and the water turns luminous,
-    // so the final storm reads as the boss moment, not a sixth beige field.
-    // Rain streaks drift with sim.time; the overlay sits under the channels
-    // so the routes stay the brightest thing on the map.
+    // Storm 6 — THE DELUGE: the map deepens further and the rain gets
+    // heavier, so the final storm reads as the boss moment. The overlay
+    // sits under the channels so the routes stay the brightest thing.
     const isDeluge = sim.phase === PHASE_PLAY && sim.stormIndex === 5;
+    const torrentPhaseNow = isDeluge ? torrentPhase(sim) : 0;
     if (isDeluge) {
-      ctx.fillStyle = 'rgba(10,26,44,0.30)';
+      ctx.fillStyle = 'rgba(4,12,22,0.35)';
       ctx.fillRect(MAP.x, MAP.y, MAP.w, MAP.h);
-      ctx.strokeStyle = 'rgba(124,196,242,0.30)';
+      ctx.strokeStyle = 'rgba(168,224,255,0.35)';
       ctx.lineWidth = 2;
       const drift = Math.floor(sim.time * 36);
-      for (let i = 0; i < 40; i += 1) {
+      for (let i = 0; i < 56; i += 1) {
         const rx = MAP.x + ((i * 97 + drift) % MAP.w);
         const ry = MAP.y + ((i * 53) % MAP.h);
         ctx.beginPath();
@@ -233,16 +235,28 @@ export function createRenderer(canvas) {
       }
     }
 
-    // Channels: bed + water. In the Deluge the water runs thicker and glows.
+    // Channels: bed + luminous water. The water glows in every storm and
+    // runs thicker in the Deluge; the south channel burns brighter while
+    // the Final Torrent is live, harder with each phase. A scrolling dash
+    // rides the water so the flow is visibly moving, not a painted line.
     for (const c of CHANNELS) {
       ctx.strokeStyle = C.channelBed;
       ctx.lineWidth = isDeluge ? 30 : 26;
       ctx.beginPath(); ctx.moveTo(CHANNEL_X0, c.y); ctx.lineTo(CHANNEL_X1, c.y); ctx.stroke();
-      if (isDeluge) { ctx.shadowColor = '#7cc4f2'; ctx.shadowBlur = 14; }
+      const torrentGlow = c.id === 2 && torrentPhaseNow > 0;
+      ctx.shadowColor = torrentGlow ? '#ff7a2e' : '#35c8ff';
+      ctx.shadowBlur = torrentGlow ? 12 + torrentPhaseNow * 6 : isDeluge ? 12 : 8;
       ctx.strokeStyle = C.channel;
       ctx.lineWidth = isDeluge ? 26 : 20;
       ctx.beginPath(); ctx.moveTo(CHANNEL_X0, c.y); ctx.lineTo(CHANNEL_X1, c.y); ctx.stroke();
       ctx.shadowBlur = 0;
+      ctx.strokeStyle = 'rgba(255,255,255,0.28)';
+      ctx.lineWidth = 3;
+      ctx.setLineDash([14, 26]);
+      ctx.lineDashOffset = -(sim.time * 60) % 40;
+      ctx.beginPath(); ctx.moveTo(CHANNEL_X0, c.y); ctx.lineTo(CHANNEL_X1, c.y); ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.lineDashOffset = 0;
       // Inlet arrow + label.
       ctx.fillStyle = C.waterDeep;
       ctx.beginPath();
@@ -271,13 +285,13 @@ export function createRenderer(canvas) {
       }
     }
 
-    // Reservoirs.
+    // Reservoirs: dark tanks, the water inside glows.
     sim.reservoirs.forEach((r, i) => {
       const def = RESERVOIRS[i];
       const cap = reservoirCapacity(sim);
-      ctx.fillStyle = '#ffffff';
+      ctx.fillStyle = '#0d2b45';
       rr(def.x, def.y, def.w, def.h, 8); ctx.fill();
-      ctx.strokeStyle = C.navy;
+      ctx.strokeStyle = C.steel;
       ctx.lineWidth = 2;
       rr(def.x, def.y, def.w, def.h, 8); ctx.stroke();
       const frac = r.level / cap;
@@ -296,12 +310,19 @@ export function createRenderer(canvas) {
       text(`${Math.floor(r.level)}/${cap}u ${frac > 0.9 ? '⚠ FULL' : ''}`, def.x + def.w / 2, def.y + def.h / 2, 13, frac > 0.5 ? '#ffffff' : C.waterDeep, 'center', true);
     });
 
-    // Districts: building blocks with flood meters.
+    // Districts: building blocks with flood meters. A flooding district
+    // glows — orange past half, red and pulsing near the edge — so the
+    // danger reads without reading the percentage.
     sim.districts.forEach((d, i) => {
       const def = DISTRICTS[i];
+      if (d.flood >= 50 && !d.lost) {
+        ctx.shadowColor = d.flood >= 75 ? C.red : C.orange;
+        ctx.shadowBlur = d.flood >= 75 ? 22 : 14;
+      }
       ctx.fillStyle = d.lost ? '#5a3a32' : def.color;
       rr(def.x, def.y, def.w, def.h, 8); ctx.fill();
-      ctx.strokeStyle = C.navy;
+      ctx.shadowBlur = 0;
+      ctx.strokeStyle = C.steel;
       ctx.lineWidth = 2;
       rr(def.x, def.y, def.w, def.h, 8); ctx.stroke();
       // Rooftops / windows.
@@ -322,15 +343,33 @@ export function createRenderer(canvas) {
       ctx.beginPath(); ctx.arc(g.x, g.y, GATE_R, 0, Math.PI * 2); ctx.stroke();
       text(g.label, g.x, g.y - 1, 14, '#ffffff', 'center', true);
       text(g.open ? 'OPEN' : 'SHUT', g.x, g.y + GATE_R + 11, 10, g.open ? C.green : C.grey, 'center', true);
-      // Destination label: 12px bold on a cream pill, so the routing verb
+      // Destination label: 12px bold on a dark pill, so the routing verb
       // reads at thumbnail size instead of being the smallest text on screen.
       const dest = `→ ${g.targetName}`;
       ctx.font = 'bold 12px system-ui, -apple-system, sans-serif';
       const dw = ctx.measureText(dest).width;
-      ctx.fillStyle = 'rgba(250,243,227,0.94)';
+      ctx.fillStyle = 'rgba(8,24,38,0.95)';
       rr(g.x - dw / 2 - 6, g.y - GATE_R - 21, dw + 12, 16, 5);
       ctx.fill();
-      text(dest, g.x, g.y - GATE_R - 12, 12, C.navy, 'center', true);
+      ctx.strokeStyle = C.steel;
+      ctx.lineWidth = 1;
+      rr(g.x - dw / 2 - 6, g.y - GATE_R - 21, dw + 12, 16, 5);
+      ctx.stroke();
+      text(dest, g.x, g.y - GATE_R - 12, 12, '#dcebf7', 'center', true);
+    }
+
+    // Spray at open gates: droplets burst out where water is being routed,
+    // so an open gate reads as moving water, not a painted circle.
+    for (const g of sim.gates) {
+      if (!g.open) continue;
+      for (let k = 0; k < 5; k += 1) {
+        const a = (k / 5) * Math.PI * 2 + sim.time * 1.5;
+        const r = 28 + 4 * Math.sin(sim.time * 3 + k);
+        ctx.fillStyle = 'rgba(168,224,255,0.8)';
+        ctx.beginPath();
+        ctx.arc(g.x + Math.cos(a) * r, g.y + Math.sin(a) * r * 0.7, 2.5, 0, Math.PI * 2);
+        ctx.fill();
+      }
     }
 
     // Flow droplets.
@@ -352,29 +391,52 @@ export function createRenderer(canvas) {
     }
 
     // Floating reward numbers (staged floaters may carry their own size).
+    // Each rides a dark pill so it reads on the night map and on the
+    // bright water, not just on a pale field.
     for (const f of sim.floaters) {
+      const fsize = f.size || 18;
+      ctx.font = `bold ${fsize}px system-ui, -apple-system, sans-serif`;
+      const fw = ctx.measureText(f.text).width;
       ctx.globalAlpha = Math.max(0, Math.min(1, f.life / f.max));
-      text(f.text, f.x, f.y, f.size || 18, f.color, 'center', true);
+      ctx.fillStyle = 'rgba(8,24,38,0.82)';
+      rr(f.x - fw / 2 - 8, f.y - fsize / 2 - 6, fw + 16, fsize + 12, 6);
+      ctx.fill();
+      text(f.text, f.x, f.y, fsize, f.color, 'center', true);
       ctx.globalAlpha = 1;
     }
 
-    // THE DELUGE boss bar: storm 6 is the boss. Its "health" is the surge
-    // water still to come — the bar drains as the storm runs out, so the
-    // final seconds read as finishing a boss, not waiting out a timer.
+    // Boss bar: while the Final Torrent is live, the bar is its surge
+    // pressure — it falls only as the player routes torrent water, so the
+    // final seconds read as finishing a boss. Otherwise it shows the
+    // Deluge water still to come, draining as the storm runs out.
     if (isDeluge) {
-      const total = stormWaterTotal(sim);
-      const left = stormWaterRemaining(sim);
-      const frac = total > 0 ? left / total : 0;
-      ctx.fillStyle = 'rgba(14,36,56,0.92)';
+      let frac;
+      let label;
+      let barColor;
+      if (torrentLive(sim)) {
+        const pressure = torrentPressure(sim);
+        const total = torrentTotal(sim);
+        frac = total > 0 ? pressure / total : 0;
+        const phase = torrentPhase(sim);
+        label = `FINAL TORRENT · PHASE ${phase}/3 ${TORRENT_PHASES[phase]} · ${Math.round(pressure)}u PRESSURE`;
+        barColor = phase >= 3 ? C.red : C.orange;
+      } else {
+        const total = stormWaterTotal(sim);
+        const left = stormWaterRemaining(sim);
+        frac = total > 0 ? left / total : 0;
+        label = `🌊 THE DELUGE — ${Math.round(left)}u SURGE LEFT`;
+        barColor = frac > 0.5 ? C.orange : C.red;
+      }
+      ctx.fillStyle = 'rgba(8,24,38,0.92)';
       rr(210, 70, 470, 34, 8); ctx.fill();
       ctx.strokeStyle = C.gold;
       ctx.lineWidth = 2;
       rr(210, 70, 470, 34, 8); ctx.stroke();
       if (frac > 0) {
-        ctx.fillStyle = frac > 0.5 ? C.orange : C.red;
+        ctx.fillStyle = barColor;
         rr(214, 74, Math.max(8, 462 * frac), 26, 5); ctx.fill();
       }
-      text(`🌊 THE DELUGE — ${Math.round(left)}u SURGE LEFT`, 445, 88, 15, '#ffffff', 'center', true);
+      text(label, 445, 88, 14, '#ffffff', 'center', true);
     }
 
     // Alarm banner. It drops to the bottom of the map during the Deluge so
@@ -430,7 +492,7 @@ export function createRenderer(canvas) {
   function panel(x, y, w, h) {
     ctx.fillStyle = C.paper;
     rr(x, y, w, h, 14); ctx.fill();
-    ctx.strokeStyle = C.navy;
+    ctx.strokeStyle = C.steel;
     ctx.lineWidth = 3;
     rr(x, y, w, h, 14); ctx.stroke();
   }
@@ -447,12 +509,12 @@ export function createRenderer(canvas) {
   function drawTitle(sim, best) {
     dim();
     panel(340, 60, 600, 560);
-    text('🌊 FLOODWORKS', 640, 118, 52, C.navy, 'center', true);
+    text('🌊 FLOODWORKS', 640, 118, 52, '#ffffff', 'center', true);
     text('EMERGENCY CANAL CONTROL', 640, 158, 18, C.orange, 'center', true);
     text('The river is rising. Route the floodwater through', 640, 200, 16, C.ink, 'center');
     text('your gates into reservoirs — keep all 3 districts dry', 640, 224, 16, C.ink, 'center');
     text('through 6 storms. Storm 6 is THE DELUGE.', 640, 248, 16, C.ink, 'center', true);
-    text('HOW TO PLAY', 640, 292, 15, C.navy, 'center', true);
+    text('HOW TO PLAY', 640, 292, 15, C.gold, 'center', true);
     text('🖱 Click a gate (G1–G6) to open / shut it', 640, 320, 14, C.ink, 'center');
     text('␣ SPACE starts the next storm   ·   E emergency pump ($40)', 640, 344, 14, C.ink, 'center');
     text('R restart   ·   P pause   ·   M mute', 640, 368, 14, C.ink, 'center');
@@ -468,19 +530,19 @@ export function createRenderer(canvas) {
     panel(240, 70, 800, 560);
     text(`✅ STORM ${sim.stormIndex + 1} CLEARED!`, 640, 140, 34, C.green, 'center', true);
     text(`Storm bonus +${Math.round(sim.stormBonus)}  ·  +$60 relief funds`, 640, 178, 16, C.ink, 'center');
-    text('Spend your funds on upgrades before the next storm:', 640, 214, 15, C.navy, 'center', true);
+    text('Spend your funds on upgrades before the next storm:', 640, 214, 15, '#ffffff', 'center', true);
     UPGRADES.forEach((u, i) => {
       const c = UPGRADE_CARDS[i];
       const lvl = sim.upgrades[u.id];
       const price = upgradePrice(u, lvl);
       const maxed = lvl >= u.max;
       const afford = !maxed && sim.funds >= price;
-      ctx.fillStyle = afford ? '#fff8ea' : '#ece4d2';
+      ctx.fillStyle = afford ? '#1a3a56' : '#14273c';
       rr(c.x, c.y, c.w, c.h, 10); ctx.fill();
       ctx.strokeStyle = afford ? C.orange : C.grey;
       ctx.lineWidth = 2;
       rr(c.x, c.y, c.w, c.h, 10); ctx.stroke();
-      text(u.name, c.x + c.w / 2, c.y + 26, 15, C.navy, 'center', true);
+      text(u.name, c.x + c.w / 2, c.y + 26, 15, '#ffffff', 'center', true);
       text(u.desc, c.x + c.w / 2, c.y + 58, 11, C.ink, 'center');
       text(u.desc.split(' ').length > 6 ? '' : '', c.x, c.y, 1, C.ink);
       text(`Level ${lvl}/${u.max}`, c.x + c.w / 2, c.y + 84, 12, C.grey, 'center');
@@ -490,7 +552,7 @@ export function createRenderer(canvas) {
     });
     text(`FUNDS: $${Math.floor(sim.funds)}`, 640, 480, 16, C.orange, 'center', true);
     if (sim.stormIndex + 1 < STORMS.length) {
-      text(`Next: STORM ${sim.stormIndex + 2}/6 — ${STORMS[sim.stormIndex + 1].name}`, 640, 512, 15, C.navy, 'center', true);
+      text(`Next: STORM ${sim.stormIndex + 2}/6 — ${STORMS[sim.stormIndex + 1].name}`, 640, 512, 15, '#ffffff', 'center', true);
     }
     bigButton(BTN.nextStorm, `▶  START STORM ${sim.stormIndex + 2}`, 'or press SPACE');
   }
@@ -501,10 +563,10 @@ export function createRenderer(canvas) {
     text('🏆 CITY SAVED!', 640, 170, 44, C.green, 'center', true);
     text('All 3 districts survived all 6 storms —', 640, 214, 16, C.ink, 'center');
     text('even THE DELUGE.', 640, 238, 16, C.ink, 'center', true);
-    text(`DISTRICTS PROTECTED: 3/3`, 640, 288, 18, C.navy, 'center', true);
+    text(`DISTRICTS PROTECTED: 3/3`, 640, 288, 18, '#ffffff', 'center', true);
     text(`Water diverted: ${Math.round(sim.stats.diverted)}u  ·  Spilled safe: ${Math.round(sim.stats.spilled)}u`, 640, 320, 14, C.ink, 'center');
     text(`Cumulative flood: ${Math.round(sim.stats.damage)}%  ·  Spent: $${sim.stats.spent}`, 640, 346, 14, C.ink, 'center');
-    text(`SCORE: ${Math.floor(sim.score)}`, 640, 392, 26, C.navy, 'center', true);
+    text(`SCORE: ${Math.floor(sim.score)}`, 640, 392, 26, '#ffffff', 'center', true);
     text(`BEST: ${Math.max(best, Math.floor(sim.score))}`, 640, 424, 15, C.grey, 'center');
     bigButton(BTN.playAgain, '↻  PLAY AGAIN', 'or press R');
   }
@@ -519,7 +581,7 @@ export function createRenderer(canvas) {
     sim.districts.forEach((d, i) => {
       text(`${d.name}: ${d.lost ? 'FLOODED' : `${Math.round(d.flood)}% flood`}`, 640, 304 + i * 24, 14, d.lost ? C.red : C.ink, 'center', true);
     });
-    text(`SCORE: ${Math.floor(sim.score)}`, 640, 404, 26, C.navy, 'center', true);
+    text(`SCORE: ${Math.floor(sim.score)}`, 640, 404, 26, '#ffffff', 'center', true);
     text(`BEST: ${Math.max(best, Math.floor(sim.score))}`, 640, 436, 15, C.grey, 'center');
     bigButton(BTN.tryAgain, '↻  TRY AGAIN', 'or press R');
   }
@@ -527,7 +589,7 @@ export function createRenderer(canvas) {
   function drawPaused() {
     dim();
     panel(440, 280, 400, 160);
-    text('⏸ PAUSED', 640, 330, 34, C.navy, 'center', true);
+    text('⏸ PAUSED', 640, 330, 34, '#ffffff', 'center', true);
     text('Press P or click ▶ to resume.', 640, 372, 15, C.ink, 'center');
     text('R restarts · M mutes', 640, 398, 13, C.grey, 'center');
   }

@@ -39,6 +39,7 @@ export function createSim() {
     floaters: [], // {x, y, text, color, life, max}
     droplets: [], // {channel, branch, t, speed} visual flow dots
     surgesFired: [],
+    torrentRouted: 0, // Final Torrent surge units safely routed (diverted + spilled)
     pumpCooldown: 0,
     alarmOn: false,
     alarmTimer: 0,
@@ -83,6 +84,42 @@ export function surgeLiveOnChannel(sim, ch) {
     if (s.channel === ch && sim.stormElapsed >= s.at && sim.stormElapsed < s.at + s.dur) return true;
   }
   return false;
+}
+
+/** The Final Torrent: storm 6's last surge (south channel, 80 units over 8 s). */
+export function torrentDef(sim) {
+  if (sim.stormIndex !== 5) return null;
+  const def = stormDef(sim);
+  return def.surges.find((s) => s.name === 'Final Torrent') || null;
+}
+
+/** Is the Final Torrent live right now? */
+export function torrentLive(sim) {
+  const t = torrentDef(sim);
+  if (!t || sim.phase !== PHASE_PLAY) return false;
+  return sim.stormElapsed >= t.at && sim.stormElapsed < t.at + t.dur;
+}
+
+/** The torrent's total surge units (80). */
+export function torrentTotal(sim) {
+  const t = torrentDef(sim);
+  return t ? t.units : 0;
+}
+
+/** The torrent's phase, 1 to 3. Presentation only: the rate never changes. */
+export function torrentPhase(sim) {
+  const t = torrentDef(sim);
+  if (!t) return 0;
+  const frac = (sim.stormElapsed - t.at) / t.dur;
+  if (frac < 0) return 0;
+  return Math.min(3, Math.floor(frac * 3) + 1);
+}
+
+export const TORRENT_PHASES = ['', 'RISING', 'CREST', 'BREAK'];
+
+/** Surge pressure: torrent units not yet safely routed. Falls as the player routes. */
+export function torrentPressure(sim) {
+  return Math.max(0, torrentTotal(sim) - sim.torrentRouted);
 }
 
 /** Total water (units) this storm will deliver, baseline + all surges. */
@@ -191,6 +228,7 @@ export function startStorm(sim) {
   sim.stormTime = STORM_DURATION;
   sim.stormElapsed = 0;
   sim.surgesFired = [];
+  sim.torrentRouted = 0;
   sim.combo = 1;
   sim.comboTimer = 0;
 }
@@ -228,6 +266,9 @@ function stepWater(sim, dt) {
   const dredgeFunds = 1 + 0.25 * sim.upgrades.dredge;
   let anyDistrictHit = false;
   const remaining = [0, 0, 0];
+  // The Final Torrent, when live, is a boss: the surge share of water
+  // routed off its channel drains its pressure bar.
+  const torrent = torrentLive(sim) ? torrentDef(sim) : null;
 
   // Pass 1 — reservoir gates: every OPEN reservoir gate on a channel diverts
   // into its reservoir (in gate order) while that reservoir has room.
@@ -244,6 +285,7 @@ function stepWater(sim, dt) {
       if (diverted > 0) {
         res.level += diverted;
         sim.stats.diverted += diverted;
+        if (torrent && ch === 2) sim.torrentRouted += diverted * (torrent.extra / rate);
         // Fractional score: round only for display, never per 60 Hz step.
         sim.score += diverted * 10 * comboMult(sim);
         sim.funds += diverted * 0.6 * dredgeFunds;
@@ -266,6 +308,10 @@ function stepWater(sim, dt) {
       const cap = SPILLWAY_MAX * (surgeLiveOnChannel(sim, ch) ? SPILLWAY_SURGE_MULT : 1);
       const drained = Math.min(remaining[ch], cap * dt);
       sim.stats.spilled += drained;
+      if (torrent && ch === 2) {
+        const rate = channelInflow(sim, ch);
+        if (rate > 0) sim.torrentRouted += drained * (torrent.extra / rate);
+      }
       sim.score += drained * 4;
       sim.funds += drained * 0.25;
       remaining[ch] -= drained;
@@ -289,11 +335,16 @@ function stepWater(sim, dt) {
   }
 
   // Combo grows each clean second, up to x5; any district hit resets it.
+  // A rising combo is announced in the open, so a high combo reads as
+  // floating score text instead of a quiet number in the top bar.
   if (!anyDistrictHit) {
     sim.comboTimer += dt;
     if (sim.comboTimer >= 1) {
       sim.comboTimer = 0;
-      if (sim.combo < 5) sim.combo += 1;
+      if (sim.combo < 5) {
+        sim.combo += 1;
+        addFloater(sim, 640, 260, `COMBO x${sim.combo}!`, '#7cf2a8', 22);
+      }
     }
   }
 
