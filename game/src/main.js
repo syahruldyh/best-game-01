@@ -103,7 +103,8 @@ function runGame() {
     }
     if (bit & ACTION_PUMP) {
       if (sim.phase === PHASE_PLAY && !sim.paused) {
-        if (emergencyPump(sim)) { audio.sfxGurgle(); announce('Emergency pump drained 30 units.'); }
+        const drained = emergencyPump(sim);
+        if (drained > 0) { audio.sfxGurgle(); announce(`Emergency pump drained ${Math.round(drained)} units.`); }
         else audio.sfxClick();
       }
       return;
