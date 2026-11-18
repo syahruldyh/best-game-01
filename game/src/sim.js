@@ -8,6 +8,7 @@ import {
   CHANNELS, DISTRICTS, GATES, PUMP_BASE, PUMP_COST, PUMP_DRAIN, PUMP_COOLDOWN,
   RESERVOIR_BASE_CAP, RESERVOIRS, START_FUNDS, STORMS, STORM_DURATION,
   UPGRADES, upgradePrice, FLOOD_PER_UNIT, EVAP_PER_SEC, SPILLWAY_MAX,
+  SPILLWAY_SURGE_MULT,
 } from './config.js';
 
 export const PHASE_TITLE = 'title';
@@ -51,7 +52,7 @@ export function reservoirCapacity(sim) {
   return RESERVOIR_BASE_CAP + 25 * sim.upgrades.dredge;
 }
 export function pumpRate(sim) {
-  return PUMP_BASE + 4 * sim.upgrades.pump;
+  return PUMP_BASE + 2 * sim.upgrades.pump;
 }
 export function leveeMult(sim) {
   return Math.pow(0.75, sim.upgrades.levee);
@@ -69,9 +70,47 @@ function rand(sim) {
   return sim.seed / 4294967296;
 }
 
-export function addFloater(sim, x, y, text, color) {
-  sim.floaters.push({ x, y, text, color: color || '#ffffff', life: 2.2, max: 2.2 });
+export function addFloater(sim, x, y, text, color, size) {
+  sim.floaters.push({ x, y, text, color: color || '#ffffff', size: size || 18, life: 2.2, max: 2.2 });
   if (sim.floaters.length > 24) sim.floaters.shift();
+}
+
+/** Is a named surge live on this channel right now? */
+export function surgeLiveOnChannel(sim, ch) {
+  if (sim.phase !== PHASE_PLAY || sim.paused) return false;
+  const def = stormDef(sim);
+  for (const s of def.surges) {
+    if (s.channel === ch && sim.stormElapsed >= s.at && sim.stormElapsed < s.at + s.dur) return true;
+  }
+  return false;
+}
+
+/** Total water (units) this storm will deliver, baseline + all surges. */
+export function stormWaterTotal(sim) {
+  const def = stormDef(sim);
+  let total = 0;
+  for (let ch = 0; ch < 3; ch += 1) total += (def.inflow[ch] || 0) * STORM_DURATION;
+  for (const s of def.surges) total += s.extra * s.dur;
+  return total;
+}
+
+/** Water (units) this storm still has to deliver from now on. */
+export function stormWaterRemaining(sim) {
+  const def = stormDef(sim);
+  let left = 0;
+  for (let ch = 0; ch < 3; ch += 1) left += (def.inflow[ch] || 0) * Math.max(0, sim.stormTime);
+  for (const s of def.surges) {
+    const ends = s.at + s.dur;
+    if (sim.stormElapsed < ends) left += s.extra * (Math.min(ends, STORM_DURATION) - Math.max(s.at, sim.stormElapsed));
+  }
+  return left;
+}
+
+/** Fraction of this storm's water already delivered (0 at storm start, 1 at end). */
+export function stormProgress(sim) {
+  const total = stormWaterTotal(sim);
+  if (total <= 0) return 1;
+  return Math.max(0, Math.min(1, 1 - stormWaterRemaining(sim) / total));
 }
 
 /** Inflow (units/s) on a channel right now, including any live named surge. */
@@ -128,13 +167,13 @@ export function buyUpgrade(sim, id) {
 }
 
 export function emergencyPump(sim) {
-  if (sim.pumpCooldown > 0 || sim.funds < PUMP_COST) return false;
+  if (sim.pumpCooldown > 0 || sim.funds < PUMP_COST) return 0;
   // Drain the fullest reservoir.
   let fullest = null;
   for (const r of sim.reservoirs) {
     if (r.level > 0 && (!fullest || r.level > fullest.level)) fullest = r;
   }
-  if (!fullest) return false;
+  if (!fullest) return 0;
   const drained = Math.min(PUMP_DRAIN, fullest.level);
   fullest.level -= drained;
   sim.funds -= PUMP_COST;
@@ -143,7 +182,7 @@ export function emergencyPump(sim) {
   sim.pumpCooldown = PUMP_COOLDOWN;
   sim.score += drained * 2;
   addFloater(sim, 795, 320, `PUMPED ${Math.round(drained)}u  +${Math.round(drained * 2)}`, '#7cc4f2');
-  return true;
+  return drained;
 }
 
 export function startStorm(sim) {
@@ -217,11 +256,15 @@ function stepWater(sim, dt) {
   // Pass 2 — spillway: each OPEN spillway gate drains ONLY its own channel.
   // G4 drains the north channel, G6 drains the south channel; the west
   // channel has no spillway gate and must use its reservoirs.
+  // Trade-off: while a named surge is live on a channel, the surge
+  // overwhelms that channel's drain, halving its spillway capacity —
+  // surges must be caught by the reservoirs, not waved through.
   for (let ch = 0; ch < 3; ch += 1) {
     if (remaining[ch] <= 0) continue;
     const spillGate = sim.gates.find((g) => g.channel === ch && g.target === 'spill');
     if (spillGate && spillGate.open) {
-      const drained = Math.min(remaining[ch], SPILLWAY_MAX * dt);
+      const cap = SPILLWAY_MAX * (surgeLiveOnChannel(sim, ch) ? SPILLWAY_SURGE_MULT : 1);
+      const drained = Math.min(remaining[ch], cap * dt);
       sim.stats.spilled += drained;
       sim.score += drained * 4;
       sim.funds += drained * 0.25;
