@@ -35,110 +35,136 @@ function openGate(sim, id) {
  */
 export function stageShot(name, sim) {
   if (name === 'cover') {
-    // Storm 4 crisis, mid-match: two water routes running, one district
-    // near overflow, reservoirs nearly full, combo live, named surges in.
+    // Storm 6/6 — THE DELUGE as the boss moment. Numbers are a real frame
+    // from a winning run (S trace, skilled pump timing): 28s into the
+    // Deluge, 2s left on the clock, LOWFIELD at 82% with the alarm up
+    // (it fires at 75%), both reservoirs pinned FULL at 125/125, all six
+    // gates open, score 92,108 on the way to a real 93,714 win. The
+    // Deluge boss bar (63u surge left of 1,070) and the storm-dark map
+    // come from render.js. The pump is honestly on cooldown (11.9s — it
+    // fired at 19.9s, just before the Final Torrent), so the button reads
+    // "ready in 12s". Floaters use only texts the game itself emits:
+    // the surge banner and the pump receipt (50u now drains 50).
     startStorm(sim);
-    sim.stormIndex = 3;
-    sim.stormElapsed = 12;
-    sim.stormTime = 18;
-    sim.score = 12840;
-    sim.best = 21900;
-    sim.funds = 286;
-    sim.combo = 3;
+    sim.stormIndex = 5;
+    sim.stormElapsed = 28;
+    sim.stormTime = 2;
+    sim.score = 92108;
+    sim.best = 93714;
+    sim.funds = 2036;
+    sim.combo = 1;
     sim.comboTimer = 0;
+    sim.pumpCooldown = 11.9;
     openGate(sim, 1);
     openGate(sim, 2);
+    openGate(sim, 3);
     openGate(sim, 4);
     openGate(sim, 5);
-    sim.reservoirs[0].level = 46;
-    sim.reservoirs[1].level = 52;
-    sim.districts[0].flood = 82; // OLD MILL near overflow
-    sim.districts[1].flood = 34;
-    sim.districts[2].flood = 12;
+    openGate(sim, 6);
+    sim.reservoirs[0].level = 125;
+    sim.reservoirs[1].level = 125;
+    sim.districts[0].flood = 25; // OLD MILL holding
+    sim.districts[1].flood = 41;
+    sim.districts[2].flood = 82; // LOWFIELD near overflow
     sim.alarmOn = true;
-    sim.stats.diverted = 312;
-    sim.stats.spilled = 96;
-    addFloater(sim, 560, 220, '+120 SAVED', '#f2b705');
-    addFloater(sim, 760, 420, '+40 DIVERTED', '#7cc4f2');
-    addFloater(sim, 880, 250, 'COMBO x3', '#7cf2a8');
-    seedDroplets(sim, 42);
-    return { screen: SCREEN_PLAY, best: 21900 };
+    sim.stats.diverted = 2799;
+    sim.stats.spilled = 353;
+    sim.stats.damage = 230;
+    sim.stats.spent = 1530;
+    sim.upgrades = { levee: 3, dredge: 3, pump: 3 };
+    addFloater(sim, 640, 200, '⚠ FINAL TORRENT!', '#e86a1c', 20);
+    addFloater(sim, 795, 320, 'PUMPED 50u  +100', '#7cc4f2');
+    seedDroplets(sim, 48);
+    return { screen: SCREEN_PLAY, best: 93714 };
   }
 
   if (name === 'rescue') {
     // Storm 5 near-loss rescue: LOWFIELD at 88%, emergency pump ready.
+    // (Unused slot — kept rendering, numbers in the new balance's range.)
     startStorm(sim);
     sim.stormIndex = 4;
     sim.stormElapsed = 22;
     sim.stormTime = 8;
-    sim.score = 38277;
-    sim.best = 41200;
+    sim.score = 68277;
+    sim.best = 93714;
     sim.funds = 154;
     sim.combo = 4;
     openGate(sim, 1);
     openGate(sim, 3);
     openGate(sim, 5);
     openGate(sim, 6);
-    sim.reservoirs[0].level = 58;
-    sim.reservoirs[1].level = 55;
+    sim.reservoirs[0].level = 48;
+    sim.reservoirs[1].level = 46;
     sim.districts[0].flood = 41;
     sim.districts[1].flood = 22;
     sim.districts[2].flood = 88; // LOWFIELD about to flood
     sim.alarmOn = true;
     sim.pumpCooldown = 0;
-    addFloater(sim, 640, 260, 'SAVED +300', '#f2b705');
-    addFloater(sim, 760, 480, 'LAST SECOND', '#e86a1c');
+    addFloater(sim, 640, 260, '⚠ BLACKWATER SURGE!', '#e86a1c', 20);
+    addFloater(sim, 760, 480, 'PUMPED 50u  +100', '#7cc4f2');
     seedDroplets(sim, 36);
-    return { screen: SCREEN_PLAY, best: 41200 };
+    return { screen: SCREEN_PLAY, best: 93714 };
   }
 
   if (name === 'win') {
-    // A real victory state: storm 6 cleared, totals filled in.
+    // A real victory state: the S trace's actual winning run — score
+    // 93,714, all three districts alive at the end of THE DELUGE
+    // (LOWFIELD finished at 76% after the repair crews), every upgrade
+    // maxed, every gate open, both reservoirs full.
     startStorm(sim);
     sim.stormIndex = 5;
     sim.phase = PHASE_WIN;
-    sim.score = 51840;
-    sim.best = 63200;
-    sim.funds = 412;
-    sim.stats.diverted = 1240;
-    sim.stats.spilled = 388;
-    sim.stats.damage = 214;
-    sim.stats.spent = 380;
+    sim.score = 93714;
+    sim.best = 93714;
+    sim.funds = 2138;
+    sim.stats.diverted = 2831;
+    sim.stats.spilled = 363;
+    sim.stats.pumped = 2581;
+    sim.stats.damage = 240;
+    sim.stats.spent = 1530;
     sim.stats.stormsCleared = 6;
-    sim.districts[0].flood = 22;
-    sim.districts[1].flood = 31;
-    sim.districts[2].flood = 18;
-    sim.upgrades = { levee: 2, dredge: 1, pump: 1 };
+    sim.districts[0].flood = 9;
+    sim.districts[1].flood = 27;
+    sim.districts[2].flood = 76;
+    sim.reservoirs[0].level = 125;
+    sim.reservoirs[1].level = 125;
+    sim.upgrades = { levee: 3, dredge: 3, pump: 3 };
     openGate(sim, 1);
+    openGate(sim, 2);
+    openGate(sim, 3);
+    openGate(sim, 4);
     openGate(sim, 5);
+    openGate(sim, 6);
     seedDroplets(sim, 18);
-    return { screen: SCREEN_WIN, best: 63200 };
+    return { screen: SCREEN_WIN, best: 93714 };
   }
 
   if (name === 'loss') {
-    // A real loss state: LOWFIELD flooded on storm 5.
+    // A real loss state: the gates-shut run — MARKET ROW floods to 100%
+    // eight seconds into storm 2, after storm 1 left every district
+    // battered (repairs only took 15% off). Nothing was diverted: both
+    // reservoirs sit empty behind the modal, which is the failure story.
     startStorm(sim);
-    sim.stormIndex = 4;
-    sim.stormElapsed = 24;
-    sim.stormTime = 6;
+    sim.stormIndex = 1;
+    sim.stormElapsed = 8;
+    sim.stormTime = 22;
     sim.phase = PHASE_LOSS;
-    sim.lostDistrict = 'LOWFIELD';
-    sim.score = 12480;
-    sim.best = 21900;
-    sim.funds = 96;
-    sim.districts[0].flood = 58;
-    sim.districts[1].flood = 44;
-    sim.districts[2].flood = 100;
-    sim.districts[2].lost = true;
-    sim.reservoirs[0].level = 60;
-    sim.reservoirs[1].level = 60;
-    sim.stats.diverted = 540;
-    sim.stats.damage = 402;
-    sim.stats.spent = 200;
-    openGate(sim, 1);
-    openGate(sim, 2);
+    sim.lostDistrict = 'MARKET ROW';
+    sim.score = 979;
+    sim.best = 93714;
+    sim.funds = 160;
+    sim.districts[0].flood = 76;
+    sim.districts[1].flood = 100;
+    sim.districts[2].flood = 76;
+    sim.districts[1].lost = true;
+    sim.reservoirs[0].level = 0;
+    sim.reservoirs[1].level = 0;
+    sim.stats.diverted = 0;
+    sim.stats.spilled = 0;
+    sim.stats.damage = 297;
+    sim.stats.spent = 0;
     seedDroplets(sim, 20);
-    return { screen: SCREEN_LOSS, best: 21900 };
+    return { screen: SCREEN_LOSS, best: 93714 };
   }
 
   // start (default): title screen over a living map.
