@@ -10,6 +10,7 @@ import {
 import {
   PHASE_TITLE, PHASE_PLAY, PHASE_INTERMISSION, PHASE_WIN, PHASE_LOSS,
   reservoirCapacity, pumpRate, channelInflow, upcomingSurges, stormDef,
+  stormWaterTotal, stormWaterRemaining,
 } from './sim.js';
 
 export const SCREEN_TITLE = PHASE_TITLE;
@@ -180,7 +181,7 @@ export function createRenderer(canvas) {
     ctx.fillStyle = afford ? C.orange : '#9aa7b1';
     rr(b.x, b.y, b.w, b.h, 8); ctx.fill();
     text('🚨 EMERG. PUMP [E]', b.x + b.w / 2, b.y + 15, 12, '#ffffff', 'center', true);
-    text(sim.pumpCooldown > 0 ? `ready in ${Math.ceil(sim.pumpCooldown)}s` : '$40 · drains 30u', b.x + b.w / 2, b.y + 32, 11, '#ffffff', 'center');
+    text(sim.pumpCooldown > 0 ? `ready in ${Math.ceil(sim.pumpCooldown)}s` : '$40 · drains 50u', b.x + b.w / 2, b.y + 32, 11, '#ffffff', 'center');
     text('SPACE next storm', PANEL_R.x + 12, 616, 12, C.grey);
     text('R restart · P pause', PANEL_R.x + 12, 634, 12, C.grey);
     text('M mute · E pump', PANEL_R.x + 12, 652 - 6, 12, C.grey);
@@ -211,14 +212,37 @@ export function createRenderer(canvas) {
     ctx.fillStyle = '#ffffff';
     ctx.fillRect(618, 622, 8, 6); ctx.fillRect(632, 622, 8, 6); ctx.fillRect(646, 622, 8, 6);
 
-    // Channels: bed + water.
+    // Storm 6 — THE DELUGE: the map darkens and the water turns luminous,
+    // so the final storm reads as the boss moment, not a sixth beige field.
+    // Rain streaks drift with sim.time; the overlay sits under the channels
+    // so the routes stay the brightest thing on the map.
+    const isDeluge = sim.phase === PHASE_PLAY && sim.stormIndex === 5;
+    if (isDeluge) {
+      ctx.fillStyle = 'rgba(10,26,44,0.30)';
+      ctx.fillRect(MAP.x, MAP.y, MAP.w, MAP.h);
+      ctx.strokeStyle = 'rgba(124,196,242,0.30)';
+      ctx.lineWidth = 2;
+      const drift = Math.floor(sim.time * 36);
+      for (let i = 0; i < 40; i += 1) {
+        const rx = MAP.x + ((i * 97 + drift) % MAP.w);
+        const ry = MAP.y + ((i * 53) % MAP.h);
+        ctx.beginPath();
+        ctx.moveTo(rx, ry);
+        ctx.lineTo(rx - 5, ry + 13);
+        ctx.stroke();
+      }
+    }
+
+    // Channels: bed + water. In the Deluge the water runs thicker and glows.
     for (const c of CHANNELS) {
       ctx.strokeStyle = C.channelBed;
-      ctx.lineWidth = 26;
+      ctx.lineWidth = isDeluge ? 30 : 26;
       ctx.beginPath(); ctx.moveTo(CHANNEL_X0, c.y); ctx.lineTo(CHANNEL_X1, c.y); ctx.stroke();
+      if (isDeluge) { ctx.shadowColor = '#7cc4f2'; ctx.shadowBlur = 14; }
       ctx.strokeStyle = C.channel;
-      ctx.lineWidth = 20;
+      ctx.lineWidth = isDeluge ? 26 : 20;
       ctx.beginPath(); ctx.moveTo(CHANNEL_X0, c.y); ctx.lineTo(CHANNEL_X1, c.y); ctx.stroke();
+      ctx.shadowBlur = 0;
       // Inlet arrow + label.
       ctx.fillStyle = C.waterDeep;
       ctx.beginPath();
@@ -322,26 +346,50 @@ export function createRenderer(canvas) {
         [x, y] = bezier(branchPath(g), d.t);
       }
       ctx.fillStyle = d.branch === 'spill' ? C.orange : C.water;
-      ctx.beginPath(); ctx.arc(x, y, 4, 0, Math.PI * 2); ctx.fill();
+      ctx.beginPath(); ctx.arc(x, y, isDeluge ? 5 : 4, 0, Math.PI * 2); ctx.fill();
       ctx.fillStyle = 'rgba(255,255,255,0.7)';
       ctx.beginPath(); ctx.arc(x - 1, y - 1, 1.5, 0, Math.PI * 2); ctx.fill();
     }
 
-    // Floating reward numbers.
+    // Floating reward numbers (staged floaters may carry their own size).
     for (const f of sim.floaters) {
       ctx.globalAlpha = Math.max(0, Math.min(1, f.life / f.max));
-      text(f.text, f.x, f.y, 18, f.color, 'center', true);
+      text(f.text, f.x, f.y, f.size || 18, f.color, 'center', true);
       ctx.globalAlpha = 1;
     }
 
-    // Alarm banner.
+    // THE DELUGE boss bar: storm 6 is the boss. Its "health" is the surge
+    // water still to come — the bar drains as the storm runs out, so the
+    // final seconds read as finishing a boss, not waiting out a timer.
+    if (isDeluge) {
+      const total = stormWaterTotal(sim);
+      const left = stormWaterRemaining(sim);
+      const frac = total > 0 ? left / total : 0;
+      ctx.fillStyle = 'rgba(14,36,56,0.92)';
+      rr(210, 70, 470, 34, 8); ctx.fill();
+      ctx.strokeStyle = C.gold;
+      ctx.lineWidth = 2;
+      rr(210, 70, 470, 34, 8); ctx.stroke();
+      if (frac > 0) {
+        ctx.fillStyle = frac > 0.5 ? C.orange : C.red;
+        rr(214, 74, Math.max(8, 462 * frac), 26, 5); ctx.fill();
+      }
+      text(`🌊 THE DELUGE — ${Math.round(left)}u SURGE LEFT`, 445, 88, 15, '#ffffff', 'center', true);
+    }
+
+    // Alarm banner. It drops to the bottom of the map during the Deluge so
+    // it never overlaps the boss bar above or the gate destination pills
+    // below it (both sit in the y=70..145 band); the bottom-left ground
+    // between the south channel and the spillway grate is empty.
     if (sim.alarmOn && (sim.phase === PHASE_PLAY)) {
       const worst = sim.districts.filter((d) => !d.lost).sort((a, b) => b.flood - a.flood)[0];
       if (worst) {
         const pulse = 0.6 + 0.4 * Math.sin(sim.time * 6);
+        const alarmY = isDeluge ? 592 : 70;
+        const alarmW = isDeluge ? 390 : 470;
         ctx.fillStyle = `rgba(217,58,43,${0.85 * pulse})`;
-        rr(210, 70, 470, 34, 8); ctx.fill();
-        text(`⚠ ${worst.name} NEAR FLOODING (${Math.round(worst.flood)}%) — OPEN A GATE!`, 445, 88, 15, '#ffffff', 'center', true);
+        rr(210, alarmY, alarmW, 34, 8); ctx.fill();
+        text(`⚠ ${worst.name} NEAR FLOODING (${Math.round(worst.flood)}%) — OPEN A GATE!`, 210 + alarmW / 2, alarmY + 18, 15, '#ffffff', 'center', true);
       }
     }
     // Next-storm warning on storm 5: the Deluge is coming.
@@ -408,7 +456,7 @@ export function createRenderer(canvas) {
     text('🖱 Click a gate (G1–G6) to open / shut it', 640, 320, 14, C.ink, 'center');
     text('␣ SPACE starts the next storm   ·   E emergency pump ($40)', 640, 344, 14, C.ink, 'center');
     text('R restart   ·   P pause   ·   M mute', 640, 368, 14, C.ink, 'center');
-    text('Between storms, buy ONE upgrade with your funds.', 640, 396, 14, C.ink, 'center');
+    text('Between storms, spend your funds on upgrades.', 640, 396, 14, C.ink, 'center');
     text('WIN: all 3 districts survive 6 storms.', 640, 424, 14, C.green, 'center', true);
     text('LOSE: any district floods to 100%.', 640, 446, 14, C.red, 'center', true);
     bigButton(BTN.start, '▶  START GAME', 'or press SPACE');
@@ -420,7 +468,7 @@ export function createRenderer(canvas) {
     panel(240, 70, 800, 560);
     text(`✅ STORM ${sim.stormIndex + 1} CLEARED!`, 640, 140, 34, C.green, 'center', true);
     text(`Storm bonus +${Math.round(sim.stormBonus)}  ·  +$60 relief funds`, 640, 178, 16, C.ink, 'center');
-    text('Spend your funds — pick ONE upgrade before the next storm:', 640, 214, 15, C.navy, 'center', true);
+    text('Spend your funds on upgrades before the next storm:', 640, 214, 15, C.navy, 'center', true);
     UPGRADES.forEach((u, i) => {
       const c = UPGRADE_CARDS[i];
       const lvl = sim.upgrades[u.id];
