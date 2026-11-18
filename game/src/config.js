@@ -37,14 +37,15 @@ export const C = {
 
 export const STEP = 1 / 60;
 export const STORM_DURATION = 30; // seconds per storm
-export const RESERVOIR_BASE_CAP = 60; // water units a reservoir holds
+export const RESERVOIR_BASE_CAP = 50; // water units a reservoir holds
 export const PUMP_BASE = 2; // units drained per second
 export const PUMP_COST = 40; // emergency pump price
-export const PUMP_DRAIN = 30; // units the emergency pump removes
+export const PUMP_DRAIN = 50; // units the emergency pump removes
 export const PUMP_COOLDOWN = 20; // seconds
 export const FLOOD_PER_UNIT = 1.0; // % flood per water unit reaching a district
 export const EVAP_PER_SEC = 0.4; // % flood that recedes per second with no inflow
 export const SPILLWAY_MAX = 5; // units/s the safe drain can take per channel
+export const SPILLWAY_SURGE_MULT = 0.5; // spillway capacity while a named surge is live on that channel: the surge overwhelms the drain, so surges must be caught by the reservoirs
 export const START_FUNDS = 100;
 
 // The three channels: river inlets on the left, districts on the right.
@@ -82,47 +83,53 @@ export const GATE_R = 24;
 
 // Six storms, escalating. inflow = units/second per channel [north, west, south].
 // surges: named mid-storm bursts {at (s into storm), dur, channel, extra u/s, name}.
+// Balance (retuned 18 Nov 2026): late storms outrun a forgetful all-open
+// strategy — storm 6 peaks at 9 + 10 = 19 u/s per channel, so the basin
+// (shared north+west, no west spillway) only survives with gate management
+// (save basin room for west, spill north) + upgrades + pump timing. Storm 1
+// stays gentle but its west surge bites harder (24u), so ignoring the gates
+// from the start already hurts.
 export const STORMS = [
   {
     name: 'FIRST RAINS', inflow: [2, 2, 2],
-    surges: [{ at: 12, dur: 6, channel: 1, extra: 3, name: 'Market Rush', units: 18 }],
+    surges: [{ at: 12, dur: 6, channel: 1, extra: 4, name: 'Market Rush', units: 24 }],
   },
   {
-    name: 'RISING RIVER', inflow: [3, 3, 3],
+    name: 'RISING RIVER', inflow: [4, 4, 4],
     surges: [
-      { at: 8, dur: 6, channel: 0, extra: 4, name: 'Millrace Rush', units: 24 },
-      { at: 20, dur: 6, channel: 2, extra: 4, name: 'Lowfield Swell', units: 24 },
+      { at: 8, dur: 6, channel: 0, extra: 5, name: 'Millrace Rush', units: 30 },
+      { at: 20, dur: 6, channel: 2, extra: 5, name: 'Lowfield Swell', units: 30 },
     ],
   },
   {
-    name: 'BLACKWATER SURGE', inflow: [4, 4, 4],
+    name: 'BLACKWATER SURGE', inflow: [5, 5, 5],
     surges: [
-      { at: 6, dur: 8, channel: 1, extra: 5, name: 'Blackwater Surge', units: 40 },
-      { at: 18, dur: 8, channel: 0, extra: 5, name: 'North Torrent', units: 40 },
+      { at: 6, dur: 8, channel: 1, extra: 6, name: 'Blackwater Surge', units: 48 },
+      { at: 18, dur: 8, channel: 0, extra: 6, name: 'North Torrent', units: 48 },
     ],
   },
   {
-    name: 'THE LONG DOWNPOUR', inflow: [5, 5, 5],
+    name: 'THE LONG DOWNPOUR', inflow: [6, 6, 6],
     surges: [
-      { at: 5, dur: 8, channel: 2, extra: 6, name: 'South Deluge', units: 48 },
-      { at: 15, dur: 8, channel: 1, extra: 6, name: 'Blackwater Surge', units: 48 },
-      { at: 24, dur: 5, channel: 0, extra: 6, name: 'Millrace Rush', units: 30 },
+      { at: 5, dur: 8, channel: 2, extra: 7, name: 'South Deluge', units: 56 },
+      { at: 15, dur: 8, channel: 1, extra: 7, name: 'Blackwater Surge', units: 56 },
+      { at: 24, dur: 5, channel: 0, extra: 7, name: 'Millrace Rush', units: 35 },
     ],
   },
   {
-    name: 'CRESTFALL', inflow: [6, 6, 6],
+    name: 'CRESTFALL', inflow: [7, 7, 7],
     surges: [
-      { at: 4, dur: 8, channel: 0, extra: 7, name: 'Crest Breaker', units: 56 },
-      { at: 13, dur: 8, channel: 2, extra: 7, name: 'Lowfield Swell', units: 56 },
-      { at: 22, dur: 6, channel: 1, extra: 7, name: 'Blackwater Surge', units: 42 },
+      { at: 4, dur: 8, channel: 0, extra: 8, name: 'Crest Breaker', units: 64 },
+      { at: 13, dur: 8, channel: 2, extra: 8, name: 'Lowfield Swell', units: 64 },
+      { at: 22, dur: 6, channel: 1, extra: 8, name: 'Blackwater Surge', units: 48 },
     ],
   },
   {
-    name: 'THE DELUGE', inflow: [7, 7, 7],
+    name: 'THE DELUGE', inflow: [9, 9, 9],
     surges: [
-      { at: 3, dur: 9, channel: 1, extra: 8, name: 'THE DELUGE', units: 72 },
-      { at: 12, dur: 9, channel: 0, extra: 8, name: 'Crest Breaker', units: 72 },
-      { at: 21, dur: 8, channel: 2, extra: 8, name: 'Final Torrent', units: 64 },
+      { at: 3, dur: 9, channel: 1, extra: 10, name: 'THE DELUGE', units: 90 },
+      { at: 12, dur: 9, channel: 0, extra: 10, name: 'Crest Breaker', units: 90 },
+      { at: 21, dur: 8, channel: 2, extra: 10, name: 'Final Torrent', units: 80 },
     ],
   },
 ];
@@ -139,7 +146,7 @@ export const UPGRADES = [
   },
   {
     id: 'pump', name: 'EXTRA PUMP', base: 120, step: 60, max: 3,
-    desc: 'Pumps drain +4 units/s per level.',
+    desc: 'Pumps drain +2 units/s per level.',
   },
 ];
 export function upgradePrice(u, level) {
